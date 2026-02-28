@@ -17,3 +17,6 @@ Thumbs.db
 # MCP tools
 .playwright-mcp/
 .serena/
+
+# Environment secrets
+.envrc
