@@ -166,6 +166,33 @@ The dotbot MCP server provides:
 
 See `.bot/README.md` for full documentation.
 
+## What's New
+
+### Multi-provider support
+Switch between **Claude**, **Codex**, and **Gemini** from the Settings tab. Each provider has its own CLI wrapper, stream parser, and model configuration. The runtime, UI, and MCP tools are all provider-aware.
+
+### External notifications
+DotbotServer sends real-time status updates to **Teams**, **Email**, or **Jira** as tasks progress through analysis and execution. Configure via Settings or `.env.local`.
+
+### Multi-repo workflow profile
+The `multi-repo` workflow profile adds a research-driven pipeline for cross-repository initiatives. It connects to Atlassian (Jira + Confluence) and Azure DevOps, runs phased research across multiple repos, and produces structured documentation — from kickstart interview through to draft PRs.
+
+### Profile taxonomy
+Profiles now declare their type as **workflow** or **stack** via `profile.yaml`. At most one workflow can be active; stacks compose additively and can extend other stacks. `dotbot init --profile multi-repo,dotnet-blazor,dotnet-ef` resolves dependencies automatically.
+
+### Operator slash commands
+`/status` and `/verify` can be sent as operator whispers during autonomous execution. `/status` returns current task state; `/verify` triggers the verification hook suite mid-session.
+
+### Security hardening
+- **PathSanitizer** strips absolute paths from AI-generated output to prevent leaking local directory structures
+- Privacy scan widened to cover the entire repo, not just `.bot/workspace/plans`
+- Pre-commit hook runs gitleaks + privacy scan on staged files only (`-StagedOnly` mode)
+
+### Process management
+- Preflight dependency checks before launching any process (verifies CLI tools, MCP servers, env vars)
+- PID lockfile discipline prevents duplicate autonomous processes
+- Dynamic port selection for the UI server (8686–8699, auto-selects next available)
+
 ## Troubleshooting
 
 **`dotbot` command not found after install** — Restart your terminal. The installer adds `~/dotbot/bin` to your PATH, but the current session needs a restart to pick it up.
