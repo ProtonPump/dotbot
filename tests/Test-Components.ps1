@@ -122,6 +122,45 @@ if (Test-Path $instanceIdModule) {
     Write-TestResult -Name "InstanceId module exists" -Status Fail -Message "Module not found at $instanceIdModule"
 }
 
+$worktreeManagerModule = Join-Path $botDir "systems\runtime\modules\WorktreeManager.psm1"
+if (Test-Path $worktreeManagerModule) {
+    Import-Module $worktreeManagerModule -Force
+    $worktreeModuleInfo = Get-Module WorktreeManager | Select-Object -First 1
+
+    $usesLiteralPath = & $worktreeModuleInfo {
+        $script:literalPathUsed = $false
+        function Test-Path {
+            param([string]$Path, [string]$LiteralPath)
+            if ($PSBoundParameters.ContainsKey('LiteralPath')) {
+                $script:literalPathUsed = $true
+            }
+            return $false
+        }
+        [void](Test-JunctionsExist -WorktreePath "/tmp/dotbot-literalpath-check")
+        return $script:literalPathUsed
+    }
+    Assert-True -Name "Test-JunctionsExist checks paths using -LiteralPath" `
+        -Condition $usesLiteralPath `
+        -Message "Expected Test-JunctionsExist to use Test-Path -LiteralPath to avoid wildcard expansion"
+
+    $getItemFailureSafe = & $worktreeModuleInfo {
+        function Test-Path {
+            param([string]$Path, [string]$LiteralPath)
+            return $true
+        }
+        function Get-Item {
+            param([string]$Path, [string]$LiteralPath, [switch]$Force, $ErrorAction)
+            throw "simulated Get-Item failure"
+        }
+        Test-JunctionsExist -WorktreePath "/tmp/dotbot-getitem-check"
+    }
+    Assert-True -Name "Test-JunctionsExist treats Get-Item failures as unsafe" `
+        -Condition $getItemFailureSafe `
+        -Message "Expected Test-JunctionsExist to return true when link inspection fails"
+} else {
+    Write-TestResult -Name "WorktreeManager module exists" -Status Fail -Message "Module not found at $worktreeManagerModule"
+}
+
 $promptBuilderScript = Join-Path $botDir "systems\runtime\modules\prompt-builder.ps1"
 if (Test-Path $promptBuilderScript) {
     . $promptBuilderScript
