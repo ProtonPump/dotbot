@@ -1548,7 +1548,7 @@ try {
                     $runningProcs = @()
                     if (Test-Path $processesDir) {
                         $runningProcs = @(Get-ChildItem $processesDir -Filter "*.json" -File -ErrorAction SilentlyContinue | ForEach-Object {
-                            try { Get-Content $_.FullName -Raw | ConvertFrom-Json } catch { $null }
+                            try { if (Test-Path $_.FullName) { Get-Content $_.FullName -Raw | ConvertFrom-Json } else { $null } } catch { $null }
                         } | Where-Object { $_ -and $_.status -in @('running', 'starting') })
                     }
 
