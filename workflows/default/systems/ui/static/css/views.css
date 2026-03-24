@@ -662,13 +662,14 @@
     padding: 6px 8px;
     cursor: pointer;
     border-radius: 3px;
-    border: 1px solid transparent;
+    background: var(--primary-15);
+    border: 1px solid var(--primary-08);
     transition: all 0.15s ease;
     user-select: none;
 }
 
 .wf-header:hover {
-    background: var(--primary-08);
+    background: var(--primary-20, rgba(var(--primary-rgb), 0.2));
 }
 
 .wf-header.running {
