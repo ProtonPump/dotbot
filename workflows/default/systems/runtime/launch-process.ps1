@@ -2626,6 +2626,7 @@ elseif ($Type -eq 'kickstart') {
         $kickstartPhases = @()
         $manifest = Get-ActiveWorkflowManifest -BotRoot $botRoot
         if ($manifest -and $manifest.tasks -and $manifest.tasks.Count -gt 0) {
+            Ensure-ManifestTaskIds -Tasks $manifest.tasks
             $kickstartPhases = @($manifest.tasks)
         }
 
