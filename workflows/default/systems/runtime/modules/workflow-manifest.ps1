@@ -254,6 +254,13 @@ function Convert-ManifestTasksToPhases {
     <#
     .SYNOPSIS
     Convert manifest tasks array into phase-compatible objects for the UI.
+
+    .DESCRIPTION
+    Transforms each task into a hashtable with id, name, type and optional keys.
+    As a side effect, this function calls Ensure-ManifestTaskIds which mutates the
+    original input task objects by adding an 'id' property to any task that lacks
+    one. Callers should be aware that the $Tasks array items will be modified
+    in-place.
     #>
     param(
         [Parameter(Mandatory)]
