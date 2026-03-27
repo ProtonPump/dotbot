@@ -84,6 +84,7 @@ function Invoke-TaskCreate {
     if (-not $steps) { $steps = @() }
     if (-not $applicableStandards) { $applicableStandards = @() }
     if (-not $applicableAgents) { $applicableAgents = @() }
+    if (-not $applicableSkills) { $applicableSkills = @() }
     if (-not $applicableDecisions) { $applicableDecisions = @() }
     # needsInterview is already a boolean, no default needed
     
