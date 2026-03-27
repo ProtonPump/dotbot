@@ -747,8 +747,9 @@ function Invoke-ClaudeStream {
 
             # B0b+B0c: periodic usage logging to JSONL (every 25% of context window)
             $ctxTokens = $state.lastTurnInput + $state.lastTurnCacheRead
-            $pct = [math]::Round($ctxTokens / 200000 * 100, 1)
-            $currentThreshold = [math]::Floor($pct / 25)
+            $pctRaw = $ctxTokens / 200000 * 100
+            $pct = [math]::Round($pctRaw, 1)
+            $currentThreshold = [math]::Floor($pctRaw / 25)
             if ($currentThreshold -gt $state.lastUsageLogAt) {
                 $state.lastUsageLogAt = $currentThreshold
                 $usageMsg = "turn=$($state.turnCount) in=$($state.totalInputTokens) out=$($state.totalOutputTokens) cache=$($state.totalCacheRead) ctx=${pct}%"
@@ -921,7 +922,7 @@ function Invoke-ClaudeStream {
                     if ($toolName -and $toolName -match '^Agent') {
                         $agentStatus = if ($isErr) { "error" } else { "success" }
                         $agentDur = if ($meta.Count -gt 0) { " $($meta -join ', ')" } else { "" }
-                        Write-ActivityLog -Type "Agent_done" -Message "$toolName [$agentStatus]$agentDur"
+                        Write-ActivityLog -Type "agent_done" -Message "$toolName [$agentStatus]$agentDur"
                     }
 
                     # B0e: log error content to JSONL (always, not just ShowVerbose)
