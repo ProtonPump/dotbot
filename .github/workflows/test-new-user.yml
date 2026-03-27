@@ -53,8 +53,8 @@ jobs:
           }
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
 
-          # Ensure NuGet provider for PowerShellGet v2
-          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
+          # Ensure NuGet provider for PowerShellGet v2 (best-effort — already present on most PS7 runners)
+          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -ErrorAction SilentlyContinue | Out-Null
 
           # Try classic install first, then PSResourceGet fallback
           try {
@@ -111,8 +111,8 @@ jobs:
           }
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
 
-          # Ensure NuGet provider for PowerShellGet v2
-          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
+          # Ensure NuGet provider for PowerShellGet v2 (best-effort — already present on most PS7 runners)
+          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -ErrorAction SilentlyContinue | Out-Null
 
           # Try classic install first, then PSResourceGet fallback
           try {
