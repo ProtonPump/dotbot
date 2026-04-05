@@ -44,17 +44,39 @@ if ($resolvedBase -and ($resolvedSource -eq $resolvedBase)) {
             New-Item -ItemType Directory -Force -Path $BaseDir | Out-Null
         }
         
-        # Copy all files except .git
-        $itemsToCopy = Get-ChildItem -Path $SourceDir -Exclude ".git", ".vs"
-        
+        # Copy all files except .git, .vs, and workflow-editor (handled separately)
+        $itemsToCopy = Get-ChildItem -Path $SourceDir -Exclude ".git", ".vs", "workflow-editor"
+
         foreach ($item in $itemsToCopy) {
             $dest = Join-Path $BaseDir $item.Name
-            
+
             if ($item.PSIsContainer) {
                 if (Test-Path $dest) { Remove-Item -Path $dest -Recurse -Force }
                 Copy-Item -Path $item.FullName -Destination $dest -Recurse -Force
             } else {
                 Copy-Item -Path $item.FullName -Destination $dest -Force
+            }
+        }
+
+        # Copy only deployable workflow-editor files (server.ps1, module, static/)
+        $editorSrc = Join-Path $SourceDir "workflow-editor"
+        if (Test-Path $editorSrc) {
+            $editorDest = Join-Path $BaseDir "workflow-editor"
+            if (Test-Path $editorDest) { Remove-Item -Path $editorDest -Recurse -Force }
+            New-Item -ItemType Directory -Force -Path $editorDest | Out-Null
+
+            # Copy server script and API module
+            foreach ($file in @("server.ps1", "WorkflowEditorAPI.psm1")) {
+                $src = Join-Path $editorSrc $file
+                if (Test-Path $src) {
+                    Copy-Item -Path $src -Destination (Join-Path $editorDest $file) -Force
+                }
+            }
+
+            # Copy static/ directory (built client assets)
+            $staticSrc = Join-Path $editorSrc "static"
+            if (Test-Path $staticSrc) {
+                Copy-Item -Path $staticSrc -Destination (Join-Path $editorDest "static") -Recurse -Force
             }
         }
         
@@ -152,6 +174,8 @@ function Show-Help {
     Write-Host "Remove an extension registry" -ForegroundColor White
     Write-Host "    update            " -NoNewline -ForegroundColor Yellow
     Write-Host "Update global installation" -ForegroundColor White
+    Write-Host "    editor            " -NoNewline -ForegroundColor Yellow
+    Write-Host "Launch visual workflow editor" -ForegroundColor White
     Write-Host "    doctor            " -NoNewline -ForegroundColor Yellow
     Write-Host "Scan project for health issues" -ForegroundColor White
     Write-Host "    help              " -NoNewline -ForegroundColor Yellow
@@ -404,6 +428,44 @@ switch ($Command) {
     "list" { Invoke-List }
     "profiles" { Invoke-List }  # backward compat
     "status" { Invoke-Status }
+    "editor" {
+        $editorDir = Join-Path $DotbotBase "workflow-editor"
+        $serverScript = Join-Path $editorDir "server.ps1"
+        $portFile = Join-Path $DotbotBase ".editor-port"
+
+        if (-not (Test-Path $serverScript)) {
+            Write-Host ""
+            Write-Host "  ✗ Workflow editor not found." -ForegroundColor Red
+            Write-Host "    Run 'dotbot update' to install the workflow editor" -ForegroundColor Yellow
+            Write-Host ""
+            break
+        }
+
+        # Check if an editor is already running
+        if (Test-Path $portFile) {
+            try {
+                $portInfo = Get-Content $portFile -Raw | ConvertFrom-Json
+                $existingPort = $portInfo.port
+                $existingPid = $portInfo.pid
+                # Verify the process is still alive
+                $proc = Get-Process -Id $existingPid -ErrorAction SilentlyContinue
+                if ($proc -and $proc.ProcessName -match 'pwsh|powershell') {
+                    Write-Host ""
+                    Write-Host "  Workflow editor already running at http://localhost:$existingPort (PID $existingPid)" -ForegroundColor Green
+                    Write-Host "  Opening browser..." -ForegroundColor Yellow
+                    Write-Host ""
+                    Start-Process "http://localhost:$existingPort"
+                    break
+                }
+                # Stale port file — process is gone
+                Remove-Item $portFile -Force -ErrorAction SilentlyContinue
+            } catch {
+                Remove-Item $portFile -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        & pwsh -NoProfile -File $serverScript
+    }
     "doctor" { & (Join-Path $ScriptsDir 'doctor.ps1') @SplatArgs }
     "update" { Invoke-Update }
     "help" { Show-Help }
