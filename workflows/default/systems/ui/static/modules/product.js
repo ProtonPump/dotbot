@@ -1,6 +1,6 @@
 /**
  * DOTBOT Control Panel - Product Documentation
- * Product documentation viewer management
+ * Product documentation viewer with subfolder tree navigation
  */
 
 /**
@@ -83,7 +83,128 @@ async function loadProductDoc(docName) {
 }
 
 /**
- * Update product file navigation in sidebar
+ * Show placeholder for non-markdown (binary) files
+ * @param {object} doc - Document object with name, filename, size
+ */
+function showBinaryPlaceholder(doc) {
+    const viewer = document.getElementById('doc-viewer');
+    if (!viewer) return;
+
+    viewer.innerHTML = `<div class="doc-placeholder">
+        <div style="text-align:center; padding: 40px 20px;">
+            <div style="font-size: 32px; margin-bottom: 12px; opacity: 0.4;">&#x1F4C4;</div>
+            <p style="font-size: 13px; margin-bottom: 6px;"><strong>${escapeHtml(doc.filename)}</strong></p>
+            <p style="font-size: 11px; color: var(--label-color);">${formatFileSize(doc.size)} &mdash; Preview not available</p>
+        </div>
+    </div>`;
+}
+
+/**
+ * Format file size in human-readable form
+ * @param {number} bytes
+ * @returns {string}
+ */
+function formatFileSize(bytes) {
+    if (bytes == null) return '0 B';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return Math.round(bytes / 1024) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+/**
+ * Build a tree structure from a flat list of docs
+ * @param {Array} docs - Flat array of {name, filename, depth, type, size}
+ * @returns {object} - Tree with { docs: [], folders: { name: tree } }
+ */
+function buildProductTree(docs) {
+    const root = { docs: [], folders: {} };
+
+    for (const doc of docs) {
+        const parts = doc.filename.split('/');
+        if (parts.length === 1) {
+            // Root-level file
+            root.docs.push(doc);
+        } else {
+            // Nested file — walk/create folder nodes
+            let node = root;
+            for (let i = 0; i < parts.length - 1; i++) {
+                const folderName = parts[i];
+                if (!node.folders[folderName]) {
+                    node.folders[folderName] = { docs: [], folders: {} };
+                }
+                node = node.folders[folderName];
+            }
+            node.docs.push(doc);
+        }
+    }
+
+    return root;
+}
+
+/**
+ * Render tree HTML recursively
+ * @param {object} tree - Tree node from buildProductTree
+ * @returns {string} - HTML string
+ */
+function renderProductTree(tree) {
+    let html = '';
+
+    // Render root-level docs first (no folder wrapper)
+    for (const doc of tree.docs) {
+        html += renderProductFileItem(doc);
+    }
+
+    // Render folders
+    const folderNames = Object.keys(tree.folders);
+    for (const folderName of folderNames) {
+        const folder = tree.folders[folderName];
+        const itemCount = countTreeItems(folder);
+        html += `<div class="chain-folder">
+            <div class="chain-folder-header">
+                <span class="folder-toggle">&#x25BC;</span>
+                <span class="folder-name">${escapeHtml(folderName)}</span>
+                <span class="folder-count">${itemCount}</span>
+            </div>
+            <div class="chain-folder-items">
+                ${renderProductTree(folder)}
+            </div>
+        </div>`;
+    }
+
+    return html;
+}
+
+/**
+ * Render a single file nav item
+ * @param {object} doc - Document object
+ * @returns {string} - HTML string
+ */
+function renderProductFileItem(doc) {
+    const isBinary = doc.type !== 'md';
+    const binaryClass = isBinary ? ' binary' : '';
+    const displayName = doc.filename.split('/').pop().replace(/\.md$/, '');
+    const icon = isBinary ? '&#x1F4C4;' : escapeHtml(displayName.charAt(0).toUpperCase());
+    return `<div class="file-nav-item${binaryClass}" data-doc="${escapeHtml(doc.name)}" data-type="${escapeHtml(doc.type || 'md')}" data-filename="${escapeHtml(doc.filename)}" data-size="${doc.size || 0}">
+        <span class="item-icon doc">${icon}</span>
+        <span>${escapeHtml(displayName)}</span>
+    </div>`;
+}
+
+/**
+ * Count total items (docs) in a tree node recursively
+ * @param {object} tree
+ * @returns {number}
+ */
+function countTreeItems(tree) {
+    let count = tree.docs.length;
+    for (const folderName of Object.keys(tree.folders)) {
+        count += countTreeItems(tree.folders[folderName]);
+    }
+    return count;
+}
+
+/**
+ * Update product file navigation in sidebar with tree structure
  */
 async function updateProductFileNav() {
     const container = document.getElementById('product-file-nav');
@@ -104,27 +225,52 @@ async function updateProductFileNav() {
             return;
         }
 
-        container.innerHTML = docs.map((doc, index) => `
-            <div class="file-nav-item${index === 0 ? ' active' : ''}" data-doc="${escapeHtml(doc.name)}">
-                <span class="item-icon doc">${escapeHtml(doc.name.charAt(0).toUpperCase())}</span>
-                <span>${escapeHtml(doc.filename)}</span>
-            </div>
-        `).join('');
+        // Build and render tree
+        const tree = buildProductTree(docs);
+        container.innerHTML = renderProductTree(tree);
 
         container.dataset.loaded = 'true';
 
-        // Add click handlers
+        // Attach folder toggle handlers
+        container.querySelectorAll('.chain-folder-header').forEach(header => {
+            header.addEventListener('click', () => {
+                const folder = header.closest('.chain-folder');
+                folder.classList.toggle('collapsed');
+                const toggle = header.querySelector('.folder-toggle');
+                if (toggle) toggle.innerHTML = folder.classList.contains('collapsed') ? '&#x25B6;' : '&#x25BC;';
+            });
+        });
+
+        // Attach file click handlers
         container.querySelectorAll('.file-nav-item').forEach(item => {
             item.addEventListener('click', () => {
                 container.querySelectorAll('.file-nav-item').forEach(i => i.classList.remove('active'));
                 item.classList.add('active');
-                loadProductDoc(item.dataset.doc);
+                if (item.dataset.type === 'binary') {
+                    showBinaryPlaceholder({
+                        name: item.dataset.doc,
+                        filename: item.dataset.filename,
+                        size: parseInt(item.dataset.size, 10) || 0
+                    });
+                } else {
+                    loadProductDoc(item.dataset.doc);
+                }
             });
         });
 
         // Load the first document automatically
-        if (docs.length > 0) {
-            loadProductDoc(docs[0].name);
+        const firstItem = container.querySelector('.file-nav-item');
+        if (firstItem) {
+            firstItem.classList.add('active');
+            if (firstItem.dataset.type === 'binary') {
+                showBinaryPlaceholder({
+                    name: firstItem.dataset.doc,
+                    filename: firstItem.dataset.filename,
+                    size: parseInt(firstItem.dataset.size, 10) || 0
+                });
+            } else {
+                loadProductDoc(firstItem.dataset.doc);
+            }
         }
     } catch (error) {
         console.error('Failed to load product file nav:', error);
