@@ -1045,6 +1045,7 @@ if (Test-Path $workflowsDefault) {
         @{ Pattern = '\$env:TEMP\b|\$env:TMP\b';                    Name = '$env:TEMP/$env:TMP (use [IO.Path]::GetTempPath())' }
         @{ Pattern = '\$env:COMPUTERNAME\b';                         Name = '$env:COMPUTERNAME (use [Net.Dns]::GetHostName())' }
         @{ Pattern = '\$env:USERDOMAIN\b';                           Name = '$env:USERDOMAIN (use [Environment]::UserDomainName)' }
+        @{ Pattern = '\$env:USERNAME\b';                             Name = '$env:USERNAME (use [Environment]::UserName)' }
         @{ Pattern = 'WindowsIdentity\]::GetCurrent\(\)';            Name = '[WindowsIdentity]::GetCurrent() without platform guard' }
         @{ Pattern = 'Get-NetIPAddress\b';                           Name = 'Get-NetIPAddress (not available on Linux)' }
         @{ Pattern = 'Get-WmiObject\b';                              Name = 'Get-WmiObject (use Get-CimInstance with platform guard)' }
