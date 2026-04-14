@@ -82,6 +82,20 @@ if (Test-Path $dotBotLogPath) {
 Import-Module (Join-Path $botRoot "systems\runtime\modules\DotBotTheme.psm1") -Force
 $t = Get-DotBotTheme
 
+# Test-ManifestCondition lives in ManifestCondition.psm1 and is needed by
+# Get-WorkflowFormConfig (called from /api/info). workflow-manifest.ps1 imports
+# it transitively, but dot-source + module scoping made the function invisible
+# to handlers in some runs. Mirror task-get-next/script.ps1: explicit absolute
+# path import + Get-Command assertion so failure is loud at startup, not 500
+# per request.
+$manifestConditionModule = Join-Path $botRoot "systems\runtime\modules\ManifestCondition.psm1"
+if (-not (Get-Module ManifestCondition)) {
+    Import-Module $manifestConditionModule -Force -DisableNameChecking -Global
+}
+if (-not (Get-Command Test-ManifestCondition -ErrorAction SilentlyContinue)) {
+    throw "Test-ManifestCondition not available after importing $manifestConditionModule. Re-run 'pwsh install.ps1' (dotbot repo) or 'dotbot init' (target project) to refresh .bot/ files."
+}
+
 # Write selected port so go.ps1 (and other tools) can discover it
 $Port.ToString() | Set-Content (Join-Path $controlDir "ui-port") -NoNewline -Encoding UTF8
 
@@ -104,6 +118,7 @@ Import-Module (Join-Path $PSScriptRoot "modules\ProcessAPI.psm1") -Force
 Import-Module (Join-Path $PSScriptRoot "modules\StateBuilder.psm1") -Force
 Import-Module (Join-Path $PSScriptRoot "modules\NotificationPoller.psm1") -Force
 Import-Module (Join-Path $PSScriptRoot "modules\DecisionAPI.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot "modules\InboxWatcher.psm1") -Force
 
 # Import workflow manifest utilities (for installed workflows API)
 . (Join-Path $botRoot "systems\runtime\modules\workflow-manifest.ps1")
@@ -121,6 +136,7 @@ Initialize-ProcessAPI -ProcessesDir $processesDir -BotRoot $botRoot -ControlDir 
 Initialize-StateBuilder -BotRoot $botRoot -ControlDir $controlDir -ProcessesDir $processesDir
 Initialize-NotificationPoller -BotRoot $botRoot
 Initialize-DecisionAPI -BotRoot $botRoot
+Initialize-InboxWatcher -BotRoot $botRoot
 
 # Request counter for single-line logging
 $script:requestCount = 0
@@ -2382,6 +2398,13 @@ $docContext
         Stop-FileWatchers
     } catch {
         Write-BotLog -Level Debug -Message "Cleanup: failed to stop file watchers" -Exception $_
+    }
+
+    # Stop inbox watchers
+    try {
+        Stop-InboxWatcher
+    } catch {
+        Write-BotLog -Level Warn -Message "Cleanup: failed to stop inbox watcher: $_"
     }
 
     # Safely stop listener if it's still running
