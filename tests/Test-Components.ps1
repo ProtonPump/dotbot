@@ -1438,6 +1438,10 @@ try {
             }
         }
     }
+    $highPrioId = $null
+    if ($highPrioCreate -and $highPrioCreate.result) {
+        $highPrioId = ($highPrioCreate.result.content[0].text | ConvertFrom-Json).task_id
+    }
 
     $requestId++
     $prioNextResponse = Send-McpRequest -Process $mcpProcess -Request @{
@@ -1455,8 +1459,8 @@ try {
         $prioNextObj = $prioNextResponse.result.content[0].text | ConvertFrom-Json
     }
     Assert-True -Name "task_get_next returns highest priority task first" `
-        -Condition ($null -ne $prioNextObj -and $null -ne $prioNextObj.task -and $prioNextObj.task.priority -le 5) `
-        -Message "Expected high priority task, got priority: $($prioNextObj.task.priority)"
+        -Condition ($null -ne $prioNextObj -and $null -ne $prioNextObj.task -and $prioNextObj.task.id -eq $highPrioId -and $prioNextObj.task.priority -eq 1) `
+        -Message "Expected task $highPrioId with priority=1, got task $($prioNextObj.task.id) with priority=$($prioNextObj.task.priority)"
 
     # Test 5: task_get_next returns null when queue is empty
     $requestId++
@@ -1513,29 +1517,9 @@ try {
     if ($emptyQueueResponse -and $emptyQueueResponse.result) {
         $emptyQueueObj = $emptyQueueResponse.result.content[0].text | ConvertFrom-Json
     }
-    Assert-True -Name "task_get_next returns null when queue is empty" `
+    Assert-True -Name "task_get_next returns null when all remaining tasks are terminal" `
         -Condition ($null -ne $emptyQueueObj -and $emptyQueueObj.success -eq $true -and $null -eq $emptyQueueObj.task) `
-        -Message "Expected success with null task"
-
-    # Test 6: task_get_next returns no task when all in terminal states
-    $requestId++
-    $terminalResponse = Send-McpRequest -Process $mcpProcess -Request @{
-        jsonrpc = '2.0'
-        id      = $requestId
-        method  = 'tools/call'
-        params  = @{
-            name      = 'task_get_next'
-            arguments = @{}
-        }
-    }
-
-    $terminalObj = $null
-    if ($terminalResponse -and $terminalResponse.result) {
-        $terminalObj = $terminalResponse.result.content[0].text | ConvertFrom-Json
-    }
-    Assert-True -Name "task_get_next returns no task when all tasks terminal" `
-        -Condition ($null -ne $terminalObj -and $terminalObj.success -eq $true -and $null -eq $terminalObj.task) `
-        -Message "Expected no task available"
+        -Message "Expected success with null task when no non-terminal tasks remain"
 
     Write-Host ""
 
@@ -2003,6 +1987,7 @@ try {
         $e2eNextObj = $null
         if ($e2eNext -and $e2eNext.result) { $e2eNextObj = $e2eNext.result.content[0].text | ConvertFrom-Json }
         if (-not $e2eNextObj -or -not $e2eNextObj.task) { $e2ePassed = $false; $e2eFailReason = "get_next returned no task" }
+        elseif ($e2eNextObj.task.id -ne $e2eTaskId) { $e2ePassed = $false; $e2eFailReason = "get_next returned unexpected task $($e2eNextObj.task.id), expected $e2eTaskId" }
     }
 
     if ($e2ePassed) {
