@@ -1325,7 +1325,7 @@ $docContext
                             $reader = New-Object System.IO.StreamReader($request.InputStream)
                             $body = $reader.ReadToEnd() | ConvertFrom-Json
                             $reader.Close()
-                            $content = Submit-TaskAnswer -TaskId $body.task_id -Answer $body.answer -CustomText $body.custom_text -Attachments $body.attachments | ConvertTo-Json -Depth 10 -Compress
+                            $content = Submit-TaskAnswer -TaskId $body.task_id -Answer $body.answer -CustomText $body.custom_text -Attachments $body.attachments -QuestionId $body.question_id | ConvertTo-Json -Depth 10 -Compress
                         } catch {
                             $statusCode = 500
                             $content = @{ success = $false; error = "Failed to submit answer: $($_.Exception.Message)" } | ConvertTo-Json -Compress
@@ -2368,7 +2368,7 @@ $docContext
             }
             $response.StatusCode = $statusCode
             $response.ContentType = $contentType
-            if ($url -eq "/" -or $contentType -like "text/html*") {
+            if ($url -eq "/" -or $contentType -like "text/html*" -or $contentType -like "application/javascript*") {
                 $response.Headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
                 $response.Headers['Pragma'] = 'no-cache'
                 $response.Headers['Expires'] = '0'
