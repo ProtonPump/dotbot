@@ -121,7 +121,7 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           STAGING="${ARCHIVE_PREFIX}-${VERSION}"
           mkdir "$STAGING"
-          cp -r install.ps1 install-remote.ps1 scripts/ profiles/ LICENSE README.md \
+          cp -r install.ps1 install-remote.ps1 scripts/ workflows/ stacks/ LICENSE README.md \
                 version.json dotbot.psd1 dotbot.psm1 "$STAGING/"
 
           # Include studio-ui runtime files (no Node source)
@@ -185,7 +185,7 @@ jobs:
           $staging = "publish-staging/Dotbot"
           New-Item -ItemType Directory -Path $staging -Force
           Copy-Item dotbot.psd1, dotbot.psm1, install.ps1, install-remote.ps1, LICENSE, README.md -Destination $staging
-          Copy-Item -Recurse scripts, profiles -Destination $staging
+          Copy-Item -Recurse scripts, workflows, stacks -Destination $staging
           # Include studio-ui runtime files
           $studioStaging = Join-Path $staging 'studio-ui'
           New-Item -ItemType Directory -Path $studioStaging -Force
