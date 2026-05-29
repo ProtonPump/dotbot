@@ -29,8 +29,8 @@ public class NotificationSummaryBuilder
                 ? template.Project.ProjectId
                 : template.Project.Name,
             // Legacy singleChoice templates carry no DeliverableSummary; providers render
-            // Title + Context as before. Validator enforces non-empty for approval /
-            // documentReview, so this stays null only when intentional (PRD §8 line 651).
+            // Title + Context as before. Validator enforces non-empty for approval with
+            // attachments, so this stays null only when intentional.
             DeliverableSummary = template.DeliverableSummary,
             Context = template.Context,
             Attachments = template.Attachments?
