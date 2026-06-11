@@ -1952,33 +1952,33 @@ if (Test-Path $notifModule) {
 
     if ($templateCapture) {
         Assert-True -Name "Split template title contains task name" `
-            -Condition ($templateCapture.title -match "Refactor auth") `
-            -Message "Expected title to contain task name, got: $($templateCapture.title)"
+            -Condition ($templateCapture.question.title -match "Refactor auth") `
+            -Message "Expected title to contain task name, got: $($templateCapture.question.title)"
 
         Assert-True -Name "Split template has 2 options (Approve/Reject)" `
-            -Condition ($templateCapture.options.Count -eq 2) `
-            -Message "Expected 2 options, got $($templateCapture.options.Count)"
+            -Condition ($templateCapture.question.options.Count -eq 2) `
+            -Message "Expected 2 options, got $($templateCapture.question.options.Count)"
 
-        $optionKeys = @($templateCapture.options | ForEach-Object { $_.key })
+        $optionKeys = @($templateCapture.question.options | ForEach-Object { $_.key })
         Assert-True -Name "Split template options are 'approve' and 'reject'" `
             -Condition ($optionKeys -contains 'approve' -and $optionKeys -contains 'reject') `
             -Message "Expected approve/reject keys, got: $($optionKeys -join ', ')"
 
         Assert-True -Name "Split template context contains reason" `
-            -Condition ($templateCapture.context -match "too large") `
+            -Condition ($templateCapture.question.context -match "too large") `
             -Message "Expected context to contain reason"
 
         Assert-True -Name "Split template context contains sub-task names" `
-            -Condition ($templateCapture.context -match "Extract middleware" -and $templateCapture.context -match "Add token rotation") `
+            -Condition ($templateCapture.question.context -match "Extract middleware" -and $templateCapture.question.context -match "Add token rotation") `
             -Message "Expected context to list sub-tasks"
 
         Assert-True -Name "Split template has questionId (deterministic GUID)" `
-            -Condition ($null -ne $templateCapture.questionId -and $templateCapture.questionId.Length -eq 36) `
-            -Message "Expected 36-char GUID questionId, got: $($templateCapture.questionId)"
+            -Condition ($null -ne $templateCapture.question.questionId -and $templateCapture.question.questionId.Length -eq 36) `
+            -Message "Expected 36-char GUID questionId, got: $($templateCapture.question.questionId)"
 
         Assert-True -Name "Split template disables free-text (Approve/Reject binary)" `
-            -Condition ($templateCapture.responseSettings.allowFreeText -eq $false) `
-            -Message "Expected allowFreeText=false for split proposal, got: $($templateCapture.responseSettings.allowFreeText)"
+            -Condition ($templateCapture.question.responseSettings.allowFreeText -eq $false) `
+            -Message "Expected allowFreeText=false for split proposal, got: $($templateCapture.question.responseSettings.allowFreeText)"
     }
 } else {
     Write-TestResult -Name "NotificationClient module exists" -Status Fail -Message "Module not found at $notifModule"
@@ -6104,30 +6104,45 @@ $resolveOptC = [guid]::NewGuid().ToString()
 #   expectedComment       - expected value of .comment when present
 #   expectedRankedCount   - expected count of .ranked_items entries
 #   expectedReviewedIds   - expected array of reviewed_attachment_ids
+# SPEC-029: responses are enveloped - the type lives on .question.type and the
+# payload on .answer.*. The resolver switches on the type and reads the matching
+# answer field.
 $resolveCases = @(
     @{
         label          = 'singleChoice'
-        response       = [pscustomobject]@{ selectedKey = 'A' }
+        response       = [pscustomobject]@{
+            question = [pscustomobject]@{ type = 'singleChoice' }
+            answer   = [pscustomobject]@{ selectedKey = 'A' }
+        }
         expectedAnswer = 'A'
         expectedKeys   = @('answer', 'attachments')
     },
     @{
         label          = 'freeText'
-        response       = [pscustomobject]@{ freeText = 'free response body' }
+        response       = [pscustomobject]@{
+            question = [pscustomobject]@{ type = 'freeText' }
+            answer   = [pscustomobject]@{ freeText = 'free response body' }
+        }
         expectedAnswer = 'free response body'
         expectedKeys   = @('answer', 'attachments')
     },
     @{
         label          = 'approval-approved (no extras)'
-        response       = [pscustomobject]@{ approvalDecision = 'approved' }
+        response       = [pscustomobject]@{
+            question = [pscustomobject]@{ type = 'approval' }
+            answer   = [pscustomobject]@{ approvalDecision = 'approved' }
+        }
         expectedAnswer = 'approved'
         expectedKeys   = @('answer', 'attachments')
     },
     @{
         label           = 'approval-rejected with comment'
         response        = [pscustomobject]@{
-            approvalDecision = 'rejected'
-            comment          = 'needs more context'
+            question = [pscustomobject]@{ type = 'approval' }
+            answer   = [pscustomobject]@{
+                approvalDecision = 'rejected'
+                comment          = 'needs more context'
+            }
         }
         expectedAnswer  = 'rejected'
         expectedKeys    = @('answer', 'attachments', 'comment')
@@ -6136,8 +6151,11 @@ $resolveCases = @(
     @{
         label               = 'approval-approved with reviewedAttachmentIds'
         response            = [pscustomobject]@{
-            approvalDecision      = 'approved'
-            reviewedAttachmentIds = @($resolveG1, $resolveG2)
+            question = [pscustomobject]@{ type = 'approval' }
+            answer   = [pscustomobject]@{
+                approvalDecision      = 'approved'
+                reviewedAttachmentIds = @($resolveG1, $resolveG2)
+            }
         }
         expectedAnswer      = 'approved'
         expectedKeys        = @('answer', 'attachments', 'reviewed_attachment_ids')
@@ -6146,13 +6164,16 @@ $resolveCases = @(
     @{
         label               = 'priorityRanking (out-of-order input)'
         response            = [pscustomobject]@{
-            # Intentionally feed items in non-rank order; resolver must sort
-            # by rank when projecting the answer string.
-            rankedItems = @(
-                [pscustomobject]@{ optionId = $resolveOptC; rank = 3 }
-                [pscustomobject]@{ optionId = $resolveOptA; rank = 1 }
-                [pscustomobject]@{ optionId = $resolveOptB; rank = 2 }
-            )
+            question = [pscustomobject]@{ type = 'priorityRanking' }
+            answer   = [pscustomobject]@{
+                # Intentionally feed items in non-rank order; resolver must sort
+                # by rank when projecting the answer string.
+                rankedItems = @(
+                    [pscustomobject]@{ optionId = $resolveOptC; rank = 3 }
+                    [pscustomobject]@{ optionId = $resolveOptA; rank = 1 }
+                    [pscustomobject]@{ optionId = $resolveOptB; rank = 2 }
+                )
+            }
         }
         expectedAnswer      = "$resolveOptA, $resolveOptB, $resolveOptC"
         expectedKeys        = @('answer', 'attachments', 'ranked_items')
